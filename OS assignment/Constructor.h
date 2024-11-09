@@ -1,15 +1,26 @@
 #pragma once
 
+#include <string>
+
 class Constructor {
 private:
-    char userName[50];
-    char taskType[50];
-    char taskLength[50];
-    int Page;
-    int arrivalTime;
+    std::string user;         // User for the task
+    std::string taskType;     // Type of task (Print or Scan)
+    std::string taskLength;   // Length of task (Short, Medium, Long)
+    int pages;                // Number of pages for the task
+    int arrivalTime;          // Arrival time for the task
 
 public:
-    void initializeTask(const char* userName, const char* taskType, const char* taskLength, int Page, int arrivalTime);
+    // Default constructor
+    Constructor();
 
-    void printTask() const;
+    // Method to initialize task
+    void initializeTask(const char* user, const char* taskType, const char* taskLength, int pages, int arrivalTime);
+
+    // Getter methods
+    const char* getUser() const;
+    const char* getTaskType() const;
+    const char* getTaskLength() const;
+    int getPages() const;
+    int getArrivalTime() const;
 };
