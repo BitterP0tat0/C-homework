@@ -1,7 +1,7 @@
 #include "Constructor.h"
 
 // Default constructor
-Constructor::Constructor() : user(""), taskType(""), taskLength(""), pages(0), arrivalTime(0) {}
+Constructor::Constructor() : user(""), taskType(""), taskLength(""), pages(0), arrivalTime(0){}
 
 // initialize task
 void Constructor::initializeTask(const char* user, const char* taskType, const char* taskLength, int pages, int arrivalTime) {
@@ -32,3 +32,4 @@ int Constructor::getPages() const {
 int Constructor::getArrivalTime() const {
     return arrivalTime;
 }
+

@@ -7,6 +7,7 @@
 #include <cstring>
 #include "Constructor.h"
 #include <mutex>
+#include <unordered_map>
 
 // Declare a global mutex to synchronize console output and task execution
 std::mutex printMutex;
@@ -24,7 +25,7 @@ int getArrivalTime(int arrivalTime) {
 }
 
 // Set the task length
-const char* getRandomLength() {
+const char* getTaskLength() {
     const char* lengths[] = { "Short", "Medium", "Long" };
     return lengths[rand() % 3];
 }
@@ -49,71 +50,64 @@ int getPages(const char* taskLength) {
 }
 
 // Function to execute a job with synchronization (mutex)
-void executeJob(Constructor task) {
+
+void executeJob(Constructor& task) {
     const char* taskType = task.getTaskType();
-    int pages = task.getPages();
-    int sleepTime = std::rand() % 101 + 50;
+    int sleepTime = std::rand() % 101 + 50;  // Random sleep time for task
 
-    // Record the start time of the task
-    auto start = std::chrono::high_resolution_clock::now();
 
-    // Lock the mutex to ensure exclusive access to the task execution
-    std::lock_guard<std::mutex> taskLock(taskMutex);  // Rename the lock variable
-
-    for (int i = 1; i <= pages; ++i) {
-        // Lock the mutex before printing the task details
-        std::lock_guard<std::mutex> printLock(printMutex);  // Rename this lock variable as well
-
-        if (strcmp(taskType, "Print") == 0) {
-            std::cout << "User " << task.getUser() << " is printing page " << i
-                << " of " << pages << " pages." << std::endl;
+    auto start = std::chrono::system_clock::now();
+    for (int i = 1; i <= task.getPages(); ++i) {
+        {
+            std::lock_guard<std::mutex> printLock(printMutex);  // Lock 
+            std::cout << "User " << task.getUser() << (strcmp(taskType, "Print") == 0 ? " is printing " : " is scanning ")
+                << "page " << i << " of " << task.getPages()
+                << " pages. Remaining pages: " << task.getPages() - i << std::endl;
         }
-        else {
-            std::cout << "User " << task.getUser() << " is scanning page " << i
-                << " of " << pages << " pages." << std::endl;
-        }
+ 
 
-        // Simulate task processing by sleeping
-        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
-      
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime)); 
+
+       
     }
 
-    // Lock the mutex for the final message
-    std::lock_guard<std::mutex> printLockFinal(printMutex);  // Another renamed lock variable
-    std::cout << "User " << task.getUser() << "'s " << taskType << " job completed." << std::endl;
+    auto end = std::chrono::system_clock::now();
 
-    // Record the end time of the task
-    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = end - start;
+    auto durationInSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
-    // Calculate the duration of the task
-    std::chrono::duration<double> duration = end - start;
-
-    // Output the completion time of the task
-    std::cout << "User " << task.getUser() << "'s " << taskType << " job took "
-        << duration.count() << " seconds to complete." << std::endl;
+    {
+        std::lock_guard<std::mutex> printLock(printMutex);
+        std::cout << "User " << task.getUser() << "'s " << taskType << " job completed." << " Completion time is " << durationInSeconds << " Miliseconds " << std::endl;
+    }
 }
+
 
 int main() {
     std::vector<Constructor> tasks;
     std::vector<std::thread> threads;
-    int arrivalTime = 0;
+    Constructor task;
 
+    int arrivalTime = 0;
+    int nums_Limit = 10;
     // Create tasks
     for (int j = 0; j < 10; ++j) {
-        Constructor task;
-        task.initializeTask(getRandomUser(), getTaskType(), getRandomLength(), getPages(getTaskType()), getArrivalTime(arrivalTime));
+        task.initializeTask(getRandomUser(), getTaskType(), getTaskLength(), getPages(getTaskLength()), getArrivalTime(arrivalTime));
+        
         tasks.push_back(task);
     }
 
-    // Launch threads to execute tasks
+    
+    for (auto& i : tasks) {
+        std::cout << "User: " << i.getUser() << ", TaskType: " << i.getTaskType() << ", Pages: " << i.getPages() << std::endl;
+    }
+   
     for (auto& task : tasks) {
         threads.push_back(std::thread(executeJob, std::ref(task)));
     }
 
-    // Wait for all threads to complete
     for (auto& t : threads) {
         t.join();
     }
-
     return 0;
 }

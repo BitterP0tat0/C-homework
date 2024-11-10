@@ -17,6 +17,7 @@ public:
     // Method to initialize task
     void initializeTask(const char* user, const char* taskType, const char* taskLength, int pages, int arrivalTime);
 
+
     // Getter methods
     const char* getUser() const;
     const char* getTaskType() const;
