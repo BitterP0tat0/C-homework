@@ -1,3 +1,4 @@
+﻿
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
@@ -7,12 +8,12 @@
 #include <cstring>
 #include "Constructor.h"
 #include <mutex>
-#include <unordered_map>
+#include <semaphore>
 
-// Declare a global mutex to synchronize console output and task execution
+std::counting_semaphore<1> printSemaphore(1);
+
 std::mutex printMutex;
-std::mutex taskMutex;  
-
+std::mutex taskMutex;
 // Random users
 const char* getRandomUser() {
     const char* users[] = { "P1", "P2", "P3", "P4", "P5" };
@@ -49,9 +50,34 @@ int getPages(const char* taskLength) {
     return 0;
 }
 
+
+void executeJobNoSyc(Constructor& task) {
+    const char* taskType = task.getTaskType();
+    int sleepTime = std::rand() % 101 + 50;
+
+    auto start = std::chrono::system_clock::now();
+    for (int i = 1; i <= task.getPages(); ++i) {
+
+        std::cout << "User " << task.getUser() << (strcmp(taskType, "Print") == 0 ? " is printing " : " is scanning ")
+            << "page " << i << " of " << task.getPages()
+            << " pages. Remaining pages: " << task.getPages() - i << std::endl;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
+    }
+
+    auto end = std::chrono::system_clock::now();
+
+    auto duration = end - start;
+    auto durationInSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+    // Final output without synchronization
+    std::cout << "User " << task.getUser() << "'s " << taskType << " job completed."
+        << " Completion time is " << durationInSeconds << " milliseconds without Mutex Sync " << std::endl;
+}
+
 // Function to execute a job with synchronization (mutex)
 
-void executeJob(Constructor& task) {
+void executeJobMutex(Constructor& task) {
     const char* taskType = task.getTaskType();
     int sleepTime = std::rand() % 101 + 50;  // Random sleep time for task
 
@@ -64,11 +90,11 @@ void executeJob(Constructor& task) {
                 << "page " << i << " of " << task.getPages()
                 << " pages. Remaining pages: " << task.getPages() - i << std::endl;
         }
- 
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime)); 
 
-       
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
+
+
     }
 
     auto end = std::chrono::system_clock::now();
@@ -78,32 +104,59 @@ void executeJob(Constructor& task) {
 
     {
         std::lock_guard<std::mutex> printLock(printMutex);
-        std::cout << "User " << task.getUser() << "'s " << taskType << " job completed." << " Completion time is " << durationInSeconds << " Miliseconds " << std::endl;
+        std::cout << "User " << task.getUser() << "'s " << taskType << " job completed." << " Completion time is " << durationInSeconds << " Miliseconds with Mutex Sync " << std::endl;
     }
 }
 
+//Syc with semaphore
+void executeJobSemaphore(Constructor& task) {
+    const char* taskType = task.getTaskType();
+
+    auto start = std::chrono::system_clock::now();
+    for (int i = 1; i <= task.getPages(); ++i) {
+        int sleepTime = std::rand() % 101 + 50;  // Random sleep time for task
+
+        printSemaphore.acquire();  // Acquire semaphore
+        std::cout << "User " << task.getUser() << (strcmp(taskType, "Print") == 0 ? " is printing " : " is scanning ")
+            << "page " << i << " of " << task.getPages()
+            << " pages. Remaining pages: " << task.getPages() - i << std::endl;
+        printSemaphore.release();  // Release semaphore
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
+    }
+
+    auto end = std::chrono::system_clock::now();
+    auto duration = end - start;
+    auto durationInSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+    printSemaphore.acquire();  // Acquire semaphore
+    std::cout << "User " << task.getUser() << "'s " << taskType << " job completed."
+        << " Completion time is " << durationInSeconds << " milliseconds with Semaphore Sync" << std::endl;
+    printSemaphore.release();  // Release semaphore
+}
 
 int main() {
     std::vector<Constructor> tasks;
     std::vector<std::thread> threads;
     Constructor task;
-
+    srand(time(0));
     int arrivalTime = 0;
     int nums_Limit = 10;
     // Create tasks
     for (int j = 0; j < 10; ++j) {
         task.initializeTask(getRandomUser(), getTaskType(), getTaskLength(), getPages(getTaskLength()), getArrivalTime(arrivalTime));
-        
+
         tasks.push_back(task);
     }
 
-    
+
     for (auto& i : tasks) {
         std::cout << "User: " << i.getUser() << ", TaskType: " << i.getTaskType() << ", Pages: " << i.getPages() << std::endl;
     }
-   
+
+    //Switch the function in this and see different result
     for (auto& task : tasks) {
-        threads.push_back(std::thread(executeJob, std::ref(task)));
+        threads.push_back(std::thread(executeJobSemaphore, std::ref(task)));
     }
 
     for (auto& t : threads) {
