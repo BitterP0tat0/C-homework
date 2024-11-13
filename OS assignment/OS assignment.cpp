@@ -185,7 +185,15 @@ int main() {
    //Switch the function 
    
     for (auto& task : tasks) {
+        threads.push_back(std::thread(executeJobNoSyc, std::ref(task)));
+    }
+
+    for (auto& task : tasks) {
         threads.push_back(std::thread(executeJobMutex, std::ref(task)));
+    }
+
+    for (auto& task : tasks) {
+        threads.push_back(std::thread(executeJobSemaphore, std::ref(task)));
     }
 
     for (auto& t : threads) {
