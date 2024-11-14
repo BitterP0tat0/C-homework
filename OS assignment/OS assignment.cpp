@@ -1,5 +1,4 @@
-﻿
-#include <iostream>
+﻿#include <iostream>
 #include <cstdlib>
 #include <ctime>
 #include <vector>
@@ -9,7 +8,7 @@
 #include "Constructor.h"
 #include <mutex>
 #include <semaphore>
-
+#include <algorithm>
 std::counting_semaphore<1> printSemaphore(1);
 
 std::mutex printMutex;
@@ -51,7 +50,7 @@ int getPages(const char* taskLength) {
     return 0;
 }
 const char* getTaskName(const int pages) {
-    
+
     if (pages > 5 && pages <= 15) {
         return "Medium";
     }
@@ -93,7 +92,7 @@ void executeJobNoSyc(Constructor& task) {
 
 void executeJobMutex(Constructor& task) {
     const char* taskType = task.getTaskType();
-    int sleepTime = 2;  
+    int sleepTime = 2;
 
     const char* taskName = getTaskName(task.getPages());
     auto start = std::chrono::system_clock::now();
@@ -152,7 +151,9 @@ void executeJobSemaphore(Constructor& task) {
         << " Completion time is " << durationInSeconds << " seconds with Semaphore Sync" << std::endl;
     printSemaphore.release();  // Release semaphore
 }
-
+bool compareArrivalTime(const Constructor& a, const Constructor& b) {
+    return a.getArrivalTime() < b.getArrivalTime();
+}
 int main() {
     std::vector<Constructor> tasks;
     std::vector<std::thread> threads;
@@ -177,13 +178,13 @@ int main() {
         }
     }
 
-
+    std::sort(tasks.begin(), tasks.end(), compareArrivalTime);
     for (auto& i : tasks) {
-        std::cout << "User: " << i.getUser() << ", TaskType: " << i.getTaskType() << ", Pages: " << i.getPages() << std::endl;
+        std::cout << "User: " << i.getUser() << ", TaskType: " << i.getTaskType() << ", Pages: " << i.getPages() << " Arrival time is " << i.getArrivalTime() << std::endl;
     }
 
-   //Switch the function 
-   
+    //Switch the function 
+
     for (auto& task : tasks) {
         threads.push_back(std::thread(executeJobNoSyc, std::ref(task)));
     }
