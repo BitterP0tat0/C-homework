@@ -63,109 +63,83 @@ const char* getTaskName(const int pages) {
     }
 
 }
-
-void executeJobNoSyc(Constructor& task) {
+void executeJobPreemptiveMutex(Constructor& task) {
     const char* taskType = task.getTaskType();
-    int sleepTime = 2;
     const char* taskName = getTaskName(task.getPages());
+    int pagesRemaining = task.getPages();
 
-    auto start = std::chrono::system_clock::now();
-    for (int i = 1; i <= task.getPages(); ++i) {
-
-        std::cout << "User " << task.getUser() << (strcmp(taskType, "Print") == 0 ? " is printing " : " is scanning ")
-            << "page " << i << " of " << task.getPages() << "pages. Task length is: " << taskName
-            << ". Remaining pages: " << task.getPages() - i << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
-
-    }
-
-    auto end = std::chrono::system_clock::now();
-
-    auto duration = end - start;
-    auto durationInSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-
-    std::cout << "User " << task.getUser() << "'s " << taskType << " job completed."
-        << " Completion time is " << durationInSeconds << " seconds without Mutex Sync " << std::endl;
-}
-
-// Function to execute a job with synchronization (mutex)
-
-void executeJobMutex(Constructor& task) {
-    const char* taskType = task.getTaskType();
-    int sleepTime = 2;
-
-    const char* taskName = getTaskName(task.getPages());
-    auto start = std::chrono::system_clock::now();
-    for (int i = 1; i <= task.getPages(); ++i) {
-        {
-            std::lock_guard<std::mutex> printLock(printMutex);  // Lock 
-            std::cout << "User " << task.getUser() << (strcmp(taskType, "Print") == 0 ? " is printing " : " is scanning ")
-                << "page " << i << " of " << task.getPages() << " pages.  Task length is: " << taskName
-                << " . Remaining pages: " << task.getPages() - i << std::endl;
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
-
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
-
-
-
-    }
-
-    auto end = std::chrono::system_clock::now();
-
-    auto duration = end - start;
-    auto durationInSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-
-    {
+    while (pagesRemaining > 0) {
         std::lock_guard<std::mutex> printLock(printMutex);
-        std::cout << "User " << task.getUser() << "'s " << taskType << " job completed." << " Completion time is " << durationInSeconds << " Miliseconds with Mutex Sync " << std::endl;
-    }
-}
-
-// Syc with semaphore
-void executeJobSemaphore(Constructor& task) {
-    const char* taskType = task.getTaskType();
-
-    auto start = std::chrono::system_clock::now();
-    for (int i = 1; i <= task.getPages(); ++i) {
-        int sleepTime = 2;  // Random sleep time for task
-        const char* taskName = getTaskName(task.getPages());
-
-        printSemaphore.acquire();  // Acquire semaphore
         std::cout << "User " << task.getUser() << (strcmp(taskType, "Print") == 0 ? " is printing " : " is scanning ")
-            << "page " << i << " of " << task.getPages() << " pages. Task length is: " << taskName
-            << " . Remaining pages: " << task.getPages() - i << std::endl;
-        printSemaphore.release();  // Release semaphore
+            << "page " << (task.getPages() - pagesRemaining + 1) << " of " << task.getPages() << " pages. Task length is: "
+            << taskName << ". Remaining pages: " << pagesRemaining - 1 << std::endl;
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
+        std::this_thread::sleep_for(std::chrono::seconds(1)); // Each page takes 1 second
+        pagesRemaining--; // Decrease the remaining pages
+
+        std::this_thread::yield(); // Allow for task preemption
     }
 
-    auto end = std::chrono::system_clock::now();
-    auto duration = end - start;
-    auto durationInSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-
-    printSemaphore.acquire();  // Acquire semaphore
-    std::cout << "User " << task.getUser() << "'s " << taskType << " job completed."
-        << " Completion time is " << durationInSeconds << " seconds with Semaphore Sync" << std::endl;
-    printSemaphore.release();  // Release semaphore
+    std::cout << "User " << task.getUser() << "'s " << taskType << " job completed." << std::endl;
 }
+
+void executeJobPreemptiveSemaphore(Constructor& task) {
+    const char* taskType = task.getTaskType();
+    const char* taskName = getTaskName(task.getPages());
+    int pagesRemaining = task.getPages();
+
+    while (pagesRemaining > 0) {
+        printSemaphore.acquire();  // Acquire semaphore before printing or scanning
+
+        std::cout << "User " << task.getUser() << (strcmp(taskType, "Print") == 0 ? " is printing " : " is scanning ")
+            << "page " << (task.getPages() - pagesRemaining + 1) << " of " << task.getPages() << " pages. Task length is: "
+            << taskName << ". Remaining pages: " << pagesRemaining - 1 << " Arrival time was " << task.getArrivalTime()<<std::endl;
+
+        std::this_thread::sleep_for(std::chrono::seconds(1)); // Each page takes 1 second
+        pagesRemaining--; // Decrease the remaining pages
+
+        printSemaphore.release();  // Release semaphore after printing or scanning
+
+        std::this_thread::yield(); 
+    }
+
+    std::cout << "User " << task.getUser() << "'s " << taskType << " job completed." << std::endl;
+}
+
+// Preemptive job execution with no synchronization (no mutex, no semaphore)
+void executeJobNoSync(Constructor& task) {
+    const char* taskType = task.getTaskType();
+    const char* taskName = getTaskName(task.getPages());
+    int pagesRemaining = task.getPages();
+
+    while (pagesRemaining > 0) {
+        std::cout << "User " << task.getUser() << (strcmp(taskType, "Print") == 0 ? " is printing " : " is scanning ")
+            << "page " << (task.getPages() - pagesRemaining + 1) << " of " << task.getPages() << " pages. Task length is: "
+            << taskName << ". Remaining pages: " << pagesRemaining - 1 << std::endl;
+
+        std::this_thread::sleep_for(std::chrono::seconds(1)); // Each page takes 1 second
+        pagesRemaining--; // Decrease the remaining pages
+
+        std::this_thread::yield(); // Allow for task preemption
+    }
+
+    std::cout << "User " << task.getUser() << "'s " << taskType << " job completed." << std::endl;
+}
+
 bool compareArrivalTime(const Constructor& a, const Constructor& b) {
     return a.getArrivalTime() < b.getArrivalTime();
 }
+
 int main() {
     std::vector<Constructor> tasks;
     std::vector<std::thread> threads;
     Constructor task;
     srand(time(0));
     int arrivalTime = 0;
-    int nums_Limit = 10;
     int tasksPerUser = 10;
 
-    // Create 10 tasks for each user
     for (int j = 0; j < tasksPerUser; ++j) {
-        for (int k = 0; k < 5; ++k) {  // Assuming 5 unique users
+        for (int k = 0; k < 5; ++k) {  
             task.initializeTask(
                 getRandomUser(k),
                 getTaskType(),
@@ -183,20 +157,10 @@ int main() {
         std::cout << "User: " << i.getUser() << ", TaskType: " << i.getTaskType() << ", Pages: " << i.getPages() << " Arrival time is " << i.getArrivalTime() << std::endl;
     }
 
-    //Switch the function 
-
     for (auto& task : tasks) {
-        threads.push_back(std::thread(executeJobNoSyc, std::ref(task)));
+        threads.push_back(std::thread(executeJobNoSync, std::ref(task)));
     }
-
-    for (auto& task : tasks) {
-        threads.push_back(std::thread(executeJobMutex, std::ref(task)));
-    }
-
-    for (auto& task : tasks) {
-        threads.push_back(std::thread(executeJobSemaphore, std::ref(task)));
-    }
-
+    
     for (auto& t : threads) {
         t.join();
     }
